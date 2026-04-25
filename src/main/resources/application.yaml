@@ -30,7 +30,7 @@ app:
     expiration-ms: 86400000
   services:
     persona:
-      base-url: http://localhost:8080
+      base-url: https://register-person.onrender.com
       create-persona-path: /api/personas
       api-key: SCHUQUIEJ202600
 security:
