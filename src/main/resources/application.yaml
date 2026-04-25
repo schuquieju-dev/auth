@@ -15,7 +15,7 @@ spring:
   application:
     name: api-auth
   profiles:
-    active: dev
+    active: prod
   jackson:
     time-zone: UTC
     serialization:
