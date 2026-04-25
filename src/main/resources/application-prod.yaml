@@ -1,0 +1,9 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://.../neon_progra?sslmode=require&channelBinding=require
+    username: ${DB_USER}
+    password: ${DB_PASSWORD}
+  jpa:
+    show-sql: true
+    hibernate:
+      ddl-auto: none

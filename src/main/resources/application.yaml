@@ -1,0 +1,47 @@
+spring:
+  mail:
+    host: smtp.gmail.com
+    port: 587
+    username: schuquieju@miumg.edu.gt
+    password: gyjzbulsspdzuyhk
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+  flyway:
+    enabled: false
+  application:
+    name: api-auth
+  profiles:
+    active: dev
+  jackson:
+    time-zone: UTC
+    serialization:
+      write-dates-as-timestamps: false
+
+server:
+  port: 8081
+
+app:
+  jwt:
+    secret: 12345678901234567890123456789012
+    expiration-ms: 86400000
+  services:
+    persona:
+      base-url: http://localhost:8080
+      create-persona-path: /api/personas
+      api-key: SCHUQUIEJ202600
+security:
+  api-key:
+    enabled: true
+    header-name: X-API-KEY
+    value: ${API_KEY:SCHUQUIEJ202600}
+
+logging:
+  level:
+    root: INFO
+    org.springframework.security: INFO
+mail:
+    from: schuquieju@miumg.edu.gt
