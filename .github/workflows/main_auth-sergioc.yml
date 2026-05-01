@@ -13,7 +13,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     permissions:
-      contents: read #This is required for actions/checkout
+      contents: read
 
     steps:
       - uses: actions/checkout@v4
@@ -25,7 +25,8 @@ jobs:
           distribution: 'microsoft'
 
       - name: Build with Maven
-        run: mvn clean install
+        # Se agrega -DskipTests para evitar el error de conexión a la base de datos durante la compilación
+        run: mvn clean install -DskipTests
 
       - name: Upload artifact for deployment job
         uses: actions/upload-artifact@v4
@@ -37,8 +38,8 @@ jobs:
     runs-on: ubuntu-latest
     needs: build
     permissions:
-      id-token: write #This is required for requesting the JWT
-      contents: read #This is required for actions/checkout
+      id-token: write
+      contents: read
   
     steps:
       - name: Download artifact from build job
@@ -60,4 +61,3 @@ jobs:
           app-name: 'auth-sergioc'
           slot-name: 'Production'
           package: '*.jar'
-          
