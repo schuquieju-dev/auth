@@ -30,7 +30,7 @@ app:
     expiration-ms: 86400000
   services:
     persona:
-      base-url: https://register-person.onrender.com
+      base-url: https://auth-sergioc-gffjeqgtd6dxf6hr.centralus-01.azurewebsites.net
       create-persona-path: /api/personas
       api-key: SCHUQUIEJ202600
 security:
