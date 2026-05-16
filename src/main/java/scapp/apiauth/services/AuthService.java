@@ -20,13 +20,13 @@ import scapp.apiauth.interfaces.services.IEmailService;
 import scapp.apiauth.interfaces.services.IJwtService;
 import scapp.apiauth.interfaces.services.persona.IPersonaClientService;
 import scapp.apiauth.util.OtpUtil;
-
-// Asegúrate de que estos imports apunten a donde tienes tus excepciones
 import scapp.apiauth.util.BusinessException;
 import scapp.apiauth.util.ResourceNotFoundException;
 import scapp.apiauth.util.UnauthorizedException;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -40,12 +40,15 @@ public class AuthService implements IAuthService {
     private final IEmailService emailService;
     private final IPersonaClientService personaClientService;
 
+
+
+
+
     @Override
     public void register(RegisterRequest request) {
         String correo = request.getCorreo().trim().toLowerCase();
 
         if (usuarioRepository.existsByCorreo(correo)) {
-            // Regla de negocio: 409 Conflict
             throw new BusinessException("El correo ya se encuentra registrado.");
         }
 
@@ -57,18 +60,32 @@ public class AuthService implements IAuthService {
         usuario.setBloqueado(Boolean.FALSE);
         usuario.setIntentosFallidos(0);
 
+        // Intentamos la vinculación imprimiendo trazas de control
+        try {
+            System.out.println("[AuthRegister] Iniciando búsqueda de vinculación para: " + correo);
+            PersonaResponse personaExistente = personaClientService.obtenerPorEmail(correo);
+
+            if (personaExistente != null && personaExistente.getId() != null) {
+                System.out.println("[AuthRegister] ¡Se detectó coincidencia! Vinculando Persona ID: " + personaExistente.getId());
+                usuario.setPersonaId(personaExistente.getId());
+            } else {
+                System.out.println("[AuthRegister] No se encontró ninguna persona previa para este correo.");
+            }
+        } catch (Exception e) {
+            System.err.println("[AuthRegister] Error al intentar asignar la persona en el registro:");
+            e.printStackTrace();
+        }
+
         EUsuario usuarioGuardado = usuarioRepository.save(usuario);
+        System.out.println("[AuthRegister] Usuario guardado en DB con Persona ID: " + usuarioGuardado.getPersonaId());
 
         EOtpVerificacion otp = crearOtp(usuarioGuardado.getId(), ETipoOtp.VERIFICACION_CORREO);
         emailService.enviarOtpRegistro(usuarioGuardado.getCorreo(), otp.getCodigo());
     }
 
-
-
     @Override
     public LoginResponse verifyOtp(VerifyOtpRequest request) {
         EUsuario usuario = usuarioRepository.findByCorreo(request.getCorreo().trim().toLowerCase())
-                // 404 No encontrado
                 .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado."));
 
         EOtpVerificacion otp = otpVerificacionRepository
@@ -77,7 +94,6 @@ public class AuthService implements IAuthService {
                         request.getCodigo(),
                         ETipoOtp.VERIFICACION_CORREO
                 )
-                // Regla de negocio: 409
                 .orElseThrow(() -> new BusinessException("OTP inválido."));
 
         if (otp.getFechaExpiracion().isBefore(LocalDateTime.now())) {
@@ -86,26 +102,37 @@ public class AuthService implements IAuthService {
 
         otp.setUsado(Boolean.TRUE);
         otp.setFechaUso(LocalDateTime.now());
-
         usuario.setCorreoVerificado(Boolean.TRUE);
-        usuario.setEstado(EEstadoUsuario.PERFIL_INCOMPLETO);
+
+        // BIFURCACIÓN INTELIGENTE: ¿Es transportista/usuario precargado o usuario nuevo?
+        if (usuario.getPersonaId() != null) {
+            // Si ya tiene persona, va directo a PENDIENTE_APROBACION o ACTIVO (según tus reglas de negocio)
+            usuario.setEstado(EEstadoUsuario.PENDIENTE_APROBACION);
+        } else {
+            // Si no tiene datos personales, lo obligamos a pasar por el formulario del Frontend
+            usuario.setEstado(EEstadoUsuario.PERFIL_INCOMPLETO);
+        }
 
         otpVerificacionRepository.save(otp);
-        usuarioRepository.save(usuario);
+        EUsuario usuarioActualizado = usuarioRepository.save(usuario);
 
-        // --- ¡AQUÍ ESTÁ LA MAGIA NUEVA! ---
-        // Generamos el token tal como lo hacemos en el método login()
-        String token = jwtService.generateToken(usuario);
+        // CORREGIDO: En lugar de un ArrayList vacío, cargamos los roles reales de la base de datos
+        // Si ya era persona existente, el query nativo nos traerá sus roles en el acto
+        List<String> roles = usuarioRepository.findRolesByCorreo(usuarioActualizado.getCorreo());
 
-        // Retornamos la misma respuesta del login
+        // El token ahora viaja con superpoderes (ID de persona y Roles incluidos de una vez)
+        String token = jwtService.generateToken(usuarioActualizado, roles);
+
         return LoginResponse.builder()
-                .usuarioId(usuario.getId())
-                .personaId(usuario.getPersonaId())
-                .correo(usuario.getCorreo())
-                .estado(usuario.getEstado().name()) // Ahora dirá "PERFIL_INCOMPLETO"
+                .usuarioId(usuarioActualizado.getId())
+                .personaId(usuarioActualizado.getPersonaId())
+                .correo(usuarioActualizado.getCorreo())
+                .estado(usuarioActualizado.getEstado().name())
+                .roles(roles) // Viaja al frontend para pintar menús
                 .token(token)
                 .build();
     }
+
 
 
     @Override
@@ -127,7 +154,6 @@ public class AuthService implements IAuthService {
     public LoginResponse login(LoginRequest request) {
         String correo = request.getCorreo().trim().toLowerCase();
 
-        // 401 Unauthorized (Es mejor no decir si existe o no por seguridad, simplemente credenciales inválidas)
         EUsuario usuario = usuarioRepository.findByCorreo(correo)
                 .orElseThrow(() -> new UnauthorizedException("Credenciales inválidas."));
 
@@ -158,13 +184,16 @@ public class AuthService implements IAuthService {
         usuario.setUltimoLogin(LocalDateTime.now());
         usuarioRepository.save(usuario);
 
-        String token = jwtService.generateToken(usuario);
+        // --- CARGAR ROLES ADICIONADOS ---
+        List<String> roles = usuarioRepository.findRolesByCorreo(usuario.getCorreo());
+        String token = jwtService.generateToken(usuario, roles);
 
         return LoginResponse.builder()
                 .usuarioId(usuario.getId())
                 .personaId(usuario.getPersonaId())
                 .correo(usuario.getCorreo())
                 .estado(usuario.getEstado().name())
+                .roles(roles) // Se envía al Frontend
                 .token(token)
                 .build();
     }
@@ -198,7 +227,6 @@ public class AuthService implements IAuthService {
         PersonaResponse personaResponse = personaClientService.crearPersona(personaCreateRequest);
 
         if (personaResponse == null || personaResponse.getId() == null) {
-            // Este sí se queda como RuntimeException porque es un error de comunicación de microservicios (un verdadero 500)
             throw new RuntimeException("No fue posible registrar la persona en el microservicio correspondiente.");
         }
 
@@ -213,6 +241,8 @@ public class AuthService implements IAuthService {
         EUsuario usuario = usuarioRepository.findByCorreo(correo.trim().toLowerCase())
                 .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado."));
 
+        List<String> roles = usuarioRepository.findRolesByCorreo(usuario.getCorreo());
+
         return UsuarioResponse.builder()
                 .id(usuario.getId())
                 .personaId(usuario.getPersonaId())
@@ -220,6 +250,7 @@ public class AuthService implements IAuthService {
                 .correoVerificado(usuario.getCorreoVerificado())
                 .estado(usuario.getEstado().name())
                 .bloqueado(usuario.getBloqueado())
+                .roles(roles) // Se envía al Frontend en el endpoint /me
                 .build();
     }
 

@@ -9,4 +9,6 @@ public interface IPersonaClientService {
 
     PersonaResponse crearPersona(PersonaCreateRequest request);
 
+    PersonaResponse obtenerPorEmail(String email);
+
 }

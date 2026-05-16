@@ -3,7 +3,7 @@ spring:
     host: smtp.gmail.com
     port: 587
     username: schuquieju@miumg.edu.gt
-    password: gyjzbulsspdzuyhk
+    password: xbqxvdjrkagcgxbs
     properties:
       mail:
         smtp:
@@ -30,7 +30,7 @@ app:
     expiration-ms: 86400000
   services:
     persona:
-      base-url: https://auth-sergioc-gffjeqgtd6dxf6hr.centralus-01.azurewebsites.net
+      base-url: https://registro-schuquiej-d9hjaqava8abcdat.centralus-01.azurewebsites.net
       create-persona-path: /api/personas
       api-key: SCHUQUIEJ202600
 security:

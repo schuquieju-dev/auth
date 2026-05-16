@@ -6,6 +6,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 
 import scapp.apiauth.config.PersonaServiceProperties;
@@ -59,4 +60,40 @@ public class PersonaClientService implements
 
 
     }
+
+    @Override
+    public PersonaResponse obtenerPorEmail(String correo) {
+        String url = personaServiceProperties.getBaseUrl() + "/api/personas/buscar?email=" + correo;
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.set("x-api-key", personaServiceProperties.getApiKey());
+        HttpEntity<Void> entity = new HttpEntity<>(headers);
+
+        try {
+            System.out.println("[PersonaClient] Consultando URL: " + url);
+            ResponseEntity<ApiResponseDto<PersonaResponse>> response = restTemplate.exchange(
+                    url,
+                    HttpMethod.GET,
+                    entity,
+                    new ParameterizedTypeReference<ApiResponseDto<PersonaResponse>>() {}
+            );
+
+            ApiResponseDto<PersonaResponse> body = response.getBody();
+            if (body != null && body.getData() != null) {
+                System.out.println("[PersonaClient] Persona recuperada con éxito. ID: " + body.getData().getId());
+                return body.getData();
+            }
+        } catch (HttpClientErrorException.NotFound e) {
+            System.out.println("[PersonaClient] La persona no existe en la DB (404 esperado para usuarios nuevos) para el correo: " + correo);
+            return null;
+        } catch (Exception e) {
+            // !!! ESTO VA A REVELAR EL ERROR REAL EN TU CONSOLA !!!
+            System.err.println("[PersonaClient] ERROR CRÍTICO al comunicarse con el microservicio de personas:");
+            e.printStackTrace();
+            return null;
+        }
+
+        return null;
+    }
+
 }

@@ -4,6 +4,8 @@ package scapp.apiauth.dto.response;
 import lombok.Builder;
 import lombok.Getter;
 
+import java.util.List;
+
 @Getter
 @Builder
 public class LoginResponse {
@@ -14,4 +16,5 @@ public class LoginResponse {
     private String correo;
     private String estado;
     private String token;
+    private List<String> roles;
 }
