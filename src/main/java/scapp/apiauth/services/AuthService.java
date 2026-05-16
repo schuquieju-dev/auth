@@ -116,6 +116,7 @@ public class AuthService implements IAuthService {
         otpVerificacionRepository.save(otp);
         EUsuario usuarioActualizado = usuarioRepository.save(usuario);
 
+<<<<<<< HEAD
         // CORREGIDO: En lugar de un ArrayList vacío, cargamos los roles reales de la base de datos
         // Si ya era persona existente, el query nativo nos traerá sus roles en el acto
         List<String> roles = usuarioRepository.findRolesByCorreo(usuarioActualizado.getCorreo());
@@ -129,12 +130,27 @@ public class AuthService implements IAuthService {
                 .correo(usuarioActualizado.getCorreo())
                 .estado(usuarioActualizado.getEstado().name())
                 .roles(roles) // Viaja al frontend para pintar menús
+=======
+        // Al verificar OTP el perfil está incompleto, por ende no suele tener roles aún
+        List<String> roles = new ArrayList<>();
+        String token = jwtService.generateToken(usuario, roles);
+
+        return LoginResponse.builder()
+                .usuarioId(usuario.getId())
+                .personaId(usuario.getPersonaId())
+                .correo(usuario.getCorreo())
+                .estado(usuario.getEstado().name())
+                .roles(roles)
+>>>>>>> 9c5b0d8c778854be0c1e13143e8dacabe502fb04
                 .token(token)
                 .build();
     }
 
+<<<<<<< HEAD
 
 
+=======
+>>>>>>> 9c5b0d8c778854be0c1e13143e8dacabe502fb04
     @Override
     public void resendOtp(ResendOtpRequest request) {
         String correo = request.getCorreo().trim().toLowerCase();
