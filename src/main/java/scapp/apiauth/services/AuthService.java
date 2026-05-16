@@ -40,10 +40,6 @@ public class AuthService implements IAuthService {
     private final IEmailService emailService;
     private final IPersonaClientService personaClientService;
 
-
-
-
-
     @Override
     public void register(RegisterRequest request) {
         String correo = request.getCorreo().trim().toLowerCase();
@@ -106,22 +102,18 @@ public class AuthService implements IAuthService {
 
         // BIFURCACIÓN INTELIGENTE: ¿Es transportista/usuario precargado o usuario nuevo?
         if (usuario.getPersonaId() != null) {
-            // Si ya tiene persona, va directo a PENDIENTE_APROBACION o ACTIVO (según tus reglas de negocio)
             usuario.setEstado(EEstadoUsuario.PENDIENTE_APROBACION);
         } else {
-            // Si no tiene datos personales, lo obligamos a pasar por el formulario del Frontend
             usuario.setEstado(EEstadoUsuario.PERFIL_INCOMPLETO);
         }
 
         otpVerificacionRepository.save(otp);
         EUsuario usuarioActualizado = usuarioRepository.save(usuario);
 
-<<<<<<< HEAD
-        // CORREGIDO: En lugar de un ArrayList vacío, cargamos los roles reales de la base de datos
-        // Si ya era persona existente, el query nativo nos traerá sus roles en el acto
+        // =========================================================================
+        // CONFLICTO RESUELTO: Mantenemos la carga dinámica de roles reales de la DB
+        // =========================================================================
         List<String> roles = usuarioRepository.findRolesByCorreo(usuarioActualizado.getCorreo());
-
-        // El token ahora viaja con superpoderes (ID de persona y Roles incluidos de una vez)
         String token = jwtService.generateToken(usuarioActualizado, roles);
 
         return LoginResponse.builder()
@@ -129,28 +121,11 @@ public class AuthService implements IAuthService {
                 .personaId(usuarioActualizado.getPersonaId())
                 .correo(usuarioActualizado.getCorreo())
                 .estado(usuarioActualizado.getEstado().name())
-                .roles(roles) // Viaja al frontend para pintar menús
-=======
-        // Al verificar OTP el perfil está incompleto, por ende no suele tener roles aún
-        List<String> roles = new ArrayList<>();
-        String token = jwtService.generateToken(usuario, roles);
-
-        return LoginResponse.builder()
-                .usuarioId(usuario.getId())
-                .personaId(usuario.getPersonaId())
-                .correo(usuario.getCorreo())
-                .estado(usuario.getEstado().name())
                 .roles(roles)
->>>>>>> 9c5b0d8c778854be0c1e13143e8dacabe502fb04
                 .token(token)
                 .build();
     }
 
-<<<<<<< HEAD
-
-
-=======
->>>>>>> 9c5b0d8c778854be0c1e13143e8dacabe502fb04
     @Override
     public void resendOtp(ResendOtpRequest request) {
         String correo = request.getCorreo().trim().toLowerCase();
@@ -209,7 +184,7 @@ public class AuthService implements IAuthService {
                 .personaId(usuario.getPersonaId())
                 .correo(usuario.getCorreo())
                 .estado(usuario.getEstado().name())
-                .roles(roles) // Se envía al Frontend
+                .roles(roles)
                 .token(token)
                 .build();
     }
@@ -266,7 +241,7 @@ public class AuthService implements IAuthService {
                 .correoVerificado(usuario.getCorreoVerificado())
                 .estado(usuario.getEstado().name())
                 .bloqueado(usuario.getBloqueado())
-                .roles(roles) // Se envía al Frontend en el endpoint /me
+                .roles(roles)
                 .build();
     }
 
