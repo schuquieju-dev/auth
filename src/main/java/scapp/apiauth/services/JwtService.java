@@ -1,39 +1,39 @@
 package scapp.apiauth.services;
-
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
-import lombok.AllArgsConstructor;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
-import scapp.apiauth.config.segurity.JwtProperties;
+
 import scapp.apiauth.entity.usuarios.EUsuario;
 import scapp.apiauth.interfaces.services.IJwtService;
+
+import scapp.apiauth.config.segurity.JwtProperties;
 
 import javax.crypto.SecretKey;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
-
 
 @Service
 @RequiredArgsConstructor
-public class JwtService implements  IJwtService {
-
-
-
+public class JwtService implements IJwtService {
 
     private final JwtProperties jwtProperties;
 
     @Override
-    public String generateToken(EUsuario usuario) {
-        Map<String, Object> claims = new HashMap<>();
-        claims.put("usuarioId", usuario.getId());
-        claims.put("personaId", usuario.getPersonaId());
-        claims.put("estado", usuario.getEstado().name());
+    public String generateToken(EUsuario usuario, List<String> roles) {
+        Map<String, Object> extraClaims = new HashMap<>();
 
-        return buildToken(claims, usuario.getCorreo());
+        // CORRECCIÓN: Cambiar .add por .put
+        extraClaims.put("usuarioId", usuario.getId());
+        extraClaims.put("personaId", usuario.getPersonaId());
+        extraClaims.put("estado", usuario.getEstado().name());
+        extraClaims.put("roles", roles);
+
+        // Delegamos la construcción al método centralizado buildToken
+        return buildToken(extraClaims, usuario.getCorreo());
     }
 
     @Override
@@ -47,6 +47,7 @@ public class JwtService implements  IJwtService {
         return username.equals(usuario.getCorreo()) && !isTokenExpired(token);
     }
 
+    // Unificamos la construcción usando la sintaxis moderna de jjwt v0.12.x
     private String buildToken(Map<String, Object> extraClaims, String username) {
         Date now = new Date();
         Date expiration = new Date(now.getTime() + jwtProperties.getExpirationMs());
@@ -56,7 +57,7 @@ public class JwtService implements  IJwtService {
                 .subject(username)
                 .issuedAt(now)
                 .expiration(expiration)
-                .signWith(getSigningKey())
+                .signWith(getSigningKey()) // Ya no requiere pasar el SignatureAlgorithm explícito en versiones nuevas
                 .compact();
     }
 
@@ -70,10 +71,12 @@ public class JwtService implements  IJwtService {
                 .verifyWith(getSigningKey())
                 .build()
                 .parseSignedClaims(token)
-                .getPayload();
+                .getPayload(); // Sintaxis moderna v0.12.x+
     }
 
     private SecretKey getSigningKey() {
+        // Nota: Si tu llave en properties está en texto plano, usa .getBytes().
+        // Si está codificada en Base64, recuerda usar: Decoders.BASE64.decode(jwtProperties.getSecret())
         byte[] keyBytes = jwtProperties.getSecret().getBytes();
         return Keys.hmacShaKeyFor(keyBytes);
     }

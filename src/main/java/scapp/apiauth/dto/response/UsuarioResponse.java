@@ -4,6 +4,8 @@ package scapp.apiauth.dto.response;
 import lombok.Builder;
 import lombok.Getter;
 
+import java.util.List;
+
 @Getter
 @Builder
 public class UsuarioResponse {
@@ -15,4 +17,5 @@ public class UsuarioResponse {
     private Boolean correoVerificado;
     private String estado;
     private Boolean bloqueado;
+    private List<String> roles;
 }

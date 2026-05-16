@@ -20,13 +20,13 @@ import scapp.apiauth.interfaces.services.IEmailService;
 import scapp.apiauth.interfaces.services.IJwtService;
 import scapp.apiauth.interfaces.services.persona.IPersonaClientService;
 import scapp.apiauth.util.OtpUtil;
-
-// Asegúrate de que estos imports apunten a donde tienes tus excepciones
 import scapp.apiauth.util.BusinessException;
 import scapp.apiauth.util.ResourceNotFoundException;
 import scapp.apiauth.util.UnauthorizedException;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -45,7 +45,6 @@ public class AuthService implements IAuthService {
         String correo = request.getCorreo().trim().toLowerCase();
 
         if (usuarioRepository.existsByCorreo(correo)) {
-            // Regla de negocio: 409 Conflict
             throw new BusinessException("El correo ya se encuentra registrado.");
         }
 
@@ -63,12 +62,9 @@ public class AuthService implements IAuthService {
         emailService.enviarOtpRegistro(usuarioGuardado.getCorreo(), otp.getCodigo());
     }
 
-
-
     @Override
     public LoginResponse verifyOtp(VerifyOtpRequest request) {
         EUsuario usuario = usuarioRepository.findByCorreo(request.getCorreo().trim().toLowerCase())
-                // 404 No encontrado
                 .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado."));
 
         EOtpVerificacion otp = otpVerificacionRepository
@@ -77,7 +73,6 @@ public class AuthService implements IAuthService {
                         request.getCodigo(),
                         ETipoOtp.VERIFICACION_CORREO
                 )
-                // Regla de negocio: 409
                 .orElseThrow(() -> new BusinessException("OTP inválido."));
 
         if (otp.getFechaExpiracion().isBefore(LocalDateTime.now())) {
@@ -93,20 +88,19 @@ public class AuthService implements IAuthService {
         otpVerificacionRepository.save(otp);
         usuarioRepository.save(usuario);
 
-        // --- ¡AQUÍ ESTÁ LA MAGIA NUEVA! ---
-        // Generamos el token tal como lo hacemos en el método login()
-        String token = jwtService.generateToken(usuario);
+        // Al verificar OTP el perfil está incompleto, por ende no suele tener roles aún
+        List<String> roles = new ArrayList<>();
+        String token = jwtService.generateToken(usuario, roles);
 
-        // Retornamos la misma respuesta del login
         return LoginResponse.builder()
                 .usuarioId(usuario.getId())
                 .personaId(usuario.getPersonaId())
                 .correo(usuario.getCorreo())
-                .estado(usuario.getEstado().name()) // Ahora dirá "PERFIL_INCOMPLETO"
+                .estado(usuario.getEstado().name())
+                .roles(roles)
                 .token(token)
                 .build();
     }
-
 
     @Override
     public void resendOtp(ResendOtpRequest request) {
@@ -127,7 +121,6 @@ public class AuthService implements IAuthService {
     public LoginResponse login(LoginRequest request) {
         String correo = request.getCorreo().trim().toLowerCase();
 
-        // 401 Unauthorized (Es mejor no decir si existe o no por seguridad, simplemente credenciales inválidas)
         EUsuario usuario = usuarioRepository.findByCorreo(correo)
                 .orElseThrow(() -> new UnauthorizedException("Credenciales inválidas."));
 
@@ -158,13 +151,16 @@ public class AuthService implements IAuthService {
         usuario.setUltimoLogin(LocalDateTime.now());
         usuarioRepository.save(usuario);
 
-        String token = jwtService.generateToken(usuario);
+        // --- CARGAR ROLES ADICIONADOS ---
+        List<String> roles = usuarioRepository.findRolesByCorreo(usuario.getCorreo());
+        String token = jwtService.generateToken(usuario, roles);
 
         return LoginResponse.builder()
                 .usuarioId(usuario.getId())
                 .personaId(usuario.getPersonaId())
                 .correo(usuario.getCorreo())
                 .estado(usuario.getEstado().name())
+                .roles(roles) // Se envía al Frontend
                 .token(token)
                 .build();
     }
@@ -198,7 +194,6 @@ public class AuthService implements IAuthService {
         PersonaResponse personaResponse = personaClientService.crearPersona(personaCreateRequest);
 
         if (personaResponse == null || personaResponse.getId() == null) {
-            // Este sí se queda como RuntimeException porque es un error de comunicación de microservicios (un verdadero 500)
             throw new RuntimeException("No fue posible registrar la persona en el microservicio correspondiente.");
         }
 
@@ -213,6 +208,8 @@ public class AuthService implements IAuthService {
         EUsuario usuario = usuarioRepository.findByCorreo(correo.trim().toLowerCase())
                 .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado."));
 
+        List<String> roles = usuarioRepository.findRolesByCorreo(usuario.getCorreo());
+
         return UsuarioResponse.builder()
                 .id(usuario.getId())
                 .personaId(usuario.getPersonaId())
@@ -220,6 +217,7 @@ public class AuthService implements IAuthService {
                 .correoVerificado(usuario.getCorreoVerificado())
                 .estado(usuario.getEstado().name())
                 .bloqueado(usuario.getBloqueado())
+                .roles(roles) // Se envía al Frontend en el endpoint /me
                 .build();
     }
 
